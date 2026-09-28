@@ -3,6 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<script>
+(function(){
+  var V='1';
+  fetch('v.txt?_='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():null).then(t=>{
+    t=t&&t.trim();
+    if(t&&t!==V&&sessionStorage.getItem('pv_ok')!==t){
+      sessionStorage.setItem('pv_ok',t);
+      location.href=location.pathname+location.search+(location.search?'&':'?')+'_v='+Date.now();
+    }
+  }).catch(()=>{});
+})();
+</script>
 <title>پاسور چهار نفره</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
