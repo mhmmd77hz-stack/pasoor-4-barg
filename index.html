@@ -103,7 +103,7 @@ function createRoom(){
   myName=esc($('name').value.trim())||'میزبان';
   const c=Math.random().toString(36).slice(2,6).toUpperCase();
   peer=new Peer('pasur-'+c,PC);
-  peer.on('open',()=>{isHost=true;room=c;G={phase:'lobby',names:[myName,null,null,null],conns:[null,null,null,null],bots:[0,0,0,0]};sendAll()});
+  peer.on('open',()=>{isHost=true;room=c;G={phase:'lobby',names:[myName,null,null,null],conns:[null,null,null,null],bots:[0,0,0,0],target:0,total:[0,0],over:false};sendAll()});
   peer.on('connection',cn=>{allConns.push(cn);cn.on('data',d=>hostMsg(cn,d));cn.on('close',()=>{allConns=allConns.filter(x=>x!=cn);const i=G.conns.indexOf(cn);if(i>=0){if(G.phase=='lobby'){G.names[i]=null;G.conns[i]=null}else{G.bots[i]=1;G.msg='⚠️ '+G.names[i]+' قطع شد؛ ربات جایش بازی می‌کند';G.names[i]+=' 🤖'}sendAll()}})});
   peer.on('error',e=>{if(e.type=='unavailable-id')createRoom();else alert('خطا در اتصال: '+e.type)});
 }
@@ -128,12 +128,12 @@ function hostMsg(cn,d){
   else if(d.t=='play'){const e=doPlay(G.conns.indexOf(cn),d.ci,d.sel);if(e)cn.send({t:'err',m:e})}
   else if(d.t=='chat'){const q=G.conns.indexOf(cn);if(q>=0&&!G.chatOff)bc(q,String(d.m).slice(0,120),d.k)}
 }
-function view(s){return{me:s,phase:G.phase,names:G.names,table:G.table||[],hand:s>=0&&G.hands?G.hands[s]:[],cnt:G.hands?G.hands.map(h=>h.length):[0,0,0,0],turn:G.turn,cc:G.cap?G.cap.map(a=>a.length):[0,0],sur:G.sur||[0,0],msg:G.msg||'',res:G.res,tm:G.team||[0,1,0,1],act:G.act||[0,1,2,3],ev:G.ev||null,chatOff:!!G.chatOff}}
+function view(s){return{me:s,phase:G.phase,names:G.names,table:G.table||[],hand:s>=0&&G.hands?G.hands[s]:[],cnt:G.hands?G.hands.map(h=>h.length):[0,0,0,0],turn:G.turn,cc:G.cap?G.cap.map(a=>a.length):[0,0],sur:G.sur||[0,0],msg:G.msg||'',res:G.res,tm:G.team||[0,1,0,1],act:G.act||[0,1,2,3],ev:G.ev||null,chatOff:!!G.chatOff,target:G.target||0,total:G.total||[0,0]}}
 function sendAll(){allConns.forEach(cn=>{const s=G.conns.indexOf(cn);try{cn.send({t:'view',v:view(s)})}catch(e){}});V=view(0);pc=-1;sel=[];render();clearTimeout(bt);if(G.phase=='play'&&G.bots[G.turn])bt=setTimeout(botPlay,1300)}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function deal(){G.hands=[0,1,2,3].map(i=>G.act.includes(i)?G.deck.splice(0,4).sort((a,b)=>a.r-b.r):[])}
 function startGame(m){
-  G.mode=m;if(m==2&&G.names.filter(x=>x).length!=2)return alert('برای بازی دو نفره دقیقاً دو نفر باید نشسته باشند');
+  G.mode=m;if(G.phase=='lobby'||G.over){G.total=[0,0];G.over=false}if(m==2&&G.names.filter(x=>x).length!=2)return alert('برای بازی دو نفره دقیقاً دو نفر باید نشسته باشند');
   let d;do{d=[];for(const s of 'SHDC')for(let r=1;r<=13;r++)d.push({r,s});shuffle(d)}while(d.slice(0,4).some(c=>c.r==11));
   if(m!=2)for(let i=0;i<4;i++)if(!G.names[i]){G.names[i]='🤖 ربات '+(i+1);G.bots[i]=1}
   G.act=m==2?[0,1,2,3].filter(i=>G.names[i]):[0,1,2,3];G.team=[0,1,0,1];if(m==2){G.team=[0,0,0,0];G.team[G.act[1]]=1}
@@ -172,7 +172,8 @@ function finish(){
   const cl=G.cap.map(a=>a.filter(c=>c.s=='C').length);
   if(cl[0]>=7)p[0]+=7;else if(cl[1]>=7)p[1]+=7;
   if(G.cap[0].length>26)p[0]+=3;else if(G.cap[1].length>26)p[1]+=3;
-  G.res={p,cards:G.cap.map(a=>a.length),sur:G.sur};G.phase='end';G.msg='';sendAll();return '';
+  if(G.target){G.total[0]+=p[0];G.total[1]+=p[1]}G.over=!!G.target&&(G.total[0]>=G.target||G.total[1]>=G.target)&&G.total[0]!=G.total[1];
+  G.res={p,cards:G.cap.map(a=>a.length),sur:G.sur,over:G.over};G.phase='end';G.msg='';sendAll();return '';
 }
 
 let bt;
@@ -203,7 +204,7 @@ function render(){
 }
 function team(i){return i%2?'تیم ۲':'تیم ۱'}
 function lobby(b){
-  let h='<div class="box"><b>صندلی‌ها</b><div style="font-size:13px;opacity:.8">هم‌تیمی‌ها روبه‌روی هم می‌نشینند: صندلی ۱ و ۳ یک تیم، صندلی ۲ و ۴ تیم دیگر.</div>';
+  let h='<div class="box"><b>صندلی‌ها</b>'+(isHost?'<div>🎯 امتیاز هدف: <input id="tg" type="number" inputmode="numeric" min="0" max="999" value="'+(V.target||'')+'" placeholder="خالی = هر دست جدا" onchange="setTarget(this.value)" style="width:170px;display:inline-block"></div>':'<div>🎯 '+(V.target?'بازی تا '+V.target+' امتیاز':'هر دست جدا حساب می‌شود')+'</div>')+'<div style="font-size:13px;opacity:.8">هم‌تیمی‌ها روبه‌روی هم می‌نشینند: صندلی ۱ و ۳ یک تیم، صندلی ۲ و ۴ تیم دیگر.</div>';
   for(let i=0;i<4;i++){
     const n=V.names[i];
     h+='<div class="seat"><span>صندلی '+(i+1)+' ('+team(i)+')</span>'+(n?'<b>'+n+(i==V.me?' (شما)':'')+'</b>':(!isHost&&i>0?'<button onclick="sit('+i+')">اینجا می‌نشینم</button>':'<span style="opacity:.5">خالی</span>'))+'</div>';
@@ -213,6 +214,7 @@ function lobby(b){
   else h+='<div class="msg">منتظر شروع بازی توسط میزبان…</div>';
   b.innerHTML=h;
 }
+function setTarget(v){if(G.phase!='lobby')return;G.target=Math.max(0,Math.min(999,parseInt(v)||0));sendAll()}
 function sit(i){host.send({t:'sit',seat:i,name:myName})}
 function board(b){
   const my=V.me<0?0:V.me,n=k=>(my+k)%4,tm=V.tm[my];
@@ -223,11 +225,11 @@ function board(b){
   const ps=x=>V.act.includes(x)?'<div class="p '+(V.turn==x?'on':'')+'">'+V.names[x]+(V.tm[x]==tm&&x!=my?' (هم‌تیمی)':'')+'<br>🂠 '+V.cnt[x]+'</div>':'';
   if(V.phase=='end'){
     const mem=t=>V.act.filter(x=>V.tm[x]==t).map(x=>V.names[x]).join(' و '),nm=t=>V.act.length==2?mem(t):team(t)+' ('+mem(t)+')';
-    const r=V.res,w=r.p[0]==r.p[1]?'مساوی':nm(r.p[0]>r.p[1]?0:1)+' برنده شد 🏆';
-    b.innerHTML='<div class="box res"><b style="font-size:24px">'+w+'</b>'+[0,1].map(t=>'<div>'+nm(t)+': <b>'+r.p[t]+'</b> امتیاز<br><small>'+r.cards[t]+' کارت، '+r.sur[t]+' پاسور</small></div>').join('')+'</div>'+(isHost?'<div class="act"><button onclick="startGame(G.mode)">دست جدید</button></div>':'');
+    const r=V.res,w=V.target?(r.over?nm(V.total[0]>V.total[1]?0:1)+' برنده‌ی کل بازی شد 🏆':'دست تمام شد'):(r.p[0]==r.p[1]?'مساوی':nm(r.p[0]>r.p[1]?0:1)+' برنده شد 🏆');
+    b.innerHTML='<div class="box res"><b style="font-size:24px">'+w+'</b>'+[0,1].map(t=>'<div>'+nm(t)+': <b>'+r.p[t]+'</b> امتیاز'+(V.target?' — جمع کل: <b>'+V.total[t]+'</b> از '+V.target:'')+'<br><small>'+r.cards[t]+' کارت، '+r.sur[t]+' پاسور</small></div>').join('')+'</div>'+(isHost?'<div class="act"><button onclick="startGame(G.mode)">'+(r.over?'بازی جدید':(V.target?'دست بعدی':'دست جدید'))+'</button></div>':'');
     return;
   }
-  b.innerHTML='<div class="bar box" style="padding:8px 14px"><span>ما: '+V.cc[tm]+' کارت، '+V.sur[tm]+' پاسور</span><span>حریف: '+V.cc[1-tm]+' کارت، '+V.sur[1-tm]+' پاسور</span></div>'
+  b.innerHTML='<div class="bar box" style="padding:8px 14px"><span>ما: '+(V.target?V.total[tm]+' امتیاز | ':'')+V.cc[tm]+' کارت، '+V.sur[tm]+' پاسور</span><span>حریف: '+(V.target?V.total[1-tm]+' امتیاز | ':'')+V.cc[1-tm]+' کارت، '+V.sur[1-tm]+' پاسور</span></div>'
    +'<div class="top">'+ps(two?op:n(2))+'</div><div class="mid">'+(two?'':ps(n(3)))+'<div class="tb" id="tb"></div>'+(two?'':ps(n(1)))+'</div>'
    +'<div class="msg">'+V.msg+'</div><div class="hand" id="hd"></div><div class="act"><button id="go"></button></div>';
   V.table.forEach((c,i)=>$('tb').append(cardEl(c,(sel.includes(i)?'sel':'')+(fresh&&!ev.cap&&i==V.table.length-1?' new':''),()=>{if(pc<0)return;sel=sel.includes(i)?sel.filter(x=>x!=i):[...sel,i];render()})));
