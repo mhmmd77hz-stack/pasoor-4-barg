@@ -57,15 +57,27 @@ h1{font-size:34px;font-weight:900;margin:24px 0 4px;color:#e8c26a}
  <div id="home">
   <h1>پاسور چهار نفره</h1>
   <div style="opacity:.8">دو تیم دو نفره؛ اتاق بساز، کد یا لینک را بفرست، دوستانت وارد شوند.</div>
-  <div class="box">
-   <input id="name" placeholder="اسم شما" maxlength="14">
-   <button id="cbtn" onclick="createRoom()">ساخت اتاق جدید</button>
+
+  <div class="box" id="invbox" hidden>
+   <div style="font-weight:700;color:#e8c26a">🎉 به اتاق <b id="ivc" style="direction:ltr;letter-spacing:3px"></b> دعوت شدی</div>
+   <input id="iname" placeholder="اسم شما" maxlength="14">
+   <button id="ijoin">ورود به بازی</button>
+   <div id="ist" style="color:#e8c26a;min-height:20px;font-size:14px"></div>
+   <button class="g" id="iown" style="font-size:13px;padding:6px 12px">ساخت اتاق خودم</button>
   </div>
-  <div class="box">
+
+  <div class="box" id="cbox">
+   <input id="name" placeholder="اسم شما" maxlength="14">
+   <button id="cbtn">ساخت اتاق جدید</button>
+  </div>
+
+  <div class="box" id="jbox">
    <input id="code" placeholder="کد اتاق" maxlength="4" style="text-transform:uppercase;direction:ltr;text-align:center">
-   <button class="g" id="jbtn" onclick="joinRoom()">ورود با کد</button><div id="js" style="color:#e8c26a;min-height:20px;font-size:14px"></div>
+   <button class="g" id="jbtn">ورود با کد</button>
+   <div id="js" style="color:#e8c26a;min-height:20px;font-size:14px"></div>
   </div>
  </div>
+
  <div id="app" hidden>
   <div class="bar"><span>کد اتاق: <b id="rc" style="font-size:20px;letter-spacing:3px"></b></span><button class="g" onclick="copyLink()">کپی لینک دعوت</button></div>
   <div id="main"></div>
@@ -78,24 +90,43 @@ h1{font-size:34px;font-weight:900;margin:24px 0 4px;color:#e8c26a}
 const $=id=>document.getElementById(id);
 const SU={S:'♠',H:'♥',D:'♦',C:'♣'};
 const RL=r=>r==1?'A':r==11?'J':r==12?'Q':r==13?'K':r;
-let peer,room,host,isHost=false,G=null,V=null,pc=-1,sel=[],myName='',allConns=[];
-$('code').value=(new URLSearchParams(location.search).get('room')||'').toUpperCase().slice(0,4);
-if($('code').value){
-  const nb=$('name').parentNode,cb=$('cbtn'),jb=$('jbtn'),iv=document.createElement('div');
-  $('home').prepend(cb);cb.className='g';cb.style.cssText='padding:4px 10px;font-size:12px;margin-bottom:4px';
-  iv.textContent='دعوت به اتاق '+$('code').value;iv.style.cssText='color:#e8c26a;font-weight:700';
-  jb.className='';jb.textContent='ورود به بازی';nb.prepend(iv);nb.append(jb,$('js'));$('code').parentNode.style.display='none';
-}
+const cleanCode=v=>String(v==null?'':v).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4);
 
-/* ---------- اتصال ---------- */
-const esc=t=>String(t).replace(/[&<>"']/g,'');
+let peer,room,host,isHost=false,G=null,V=null,pc=-1,sel=[],myName='',allConns=[],tries=0,hostTries=0;
+
+/* ---------- خواندن کد دعوت از آدرس ---------- */
+let inviteCode='';
+try{
+  const q=new URLSearchParams(location.search);
+  inviteCode=cleanCode(q.get('room')||q.get('r')||'');
+  if(!inviteCode&&location.hash.length>1){
+    const h=new URLSearchParams(location.hash.slice(1));
+    inviteCode=cleanCode(h.get('room')||h.get('r')||'');
+  }
+}replacecatch(e){}
+(/let savedName='';try{savedName=localStorage.getItem('[pasurName')||''}catch(e&){}
+
+if(inviteCode){
+  $('<>invbox').hidden=false;$('c"box').hidden=true;$('jbox').hidden=true;
+  $('ivc').textContent=inviteCode;$('iname').value=savedName;
+  $('ijoin').onclick=()=>joinRoom(inviteCode,$('iname'),$('ist'));
+  $('iown').onclick=()=>{location.href=location.pathname};
+}else{
+  $('name').value=savedName;
+  $('cbtn').onclick=createRoom;
+  $('jbtn').onclick=()=>joinRoom($('code').value,$('name'),$('js'));
+}
+$('code').addEventListener('input',e=>{e.target.value=cleanCode(e.target.value)});
+
+/* ---------- چت ---------- */
+const esc=t=>String(t).']/g,'');
 const STK=['👏','😂','😡','🔥','🤝','😎','🙏','😭','🤔','💪','آفرین!','بد شانسی 😅','یالا زود باش','پاسور!'];
 let tt,lastEv=0;
 STK.forEach(e=>{const b=document.createElement('button');b.className='g sb';b.textContent=e;b.onclick=()=>sendChat(e,'s');$('stk').append(b)});
 function setCO(off){$('stk').style.display=$('crow').style.display=off?'none':'';$('cn').style.display=off&&!isHost?'':'none';$('clog').style.display=off?'none':'';$('chat').classList.toggle('off',off);const b=$('ct');b.style.display=isHost?'':'none';b.textContent=off?'🔊 وصل کردن چت':'🔇 قطع چت'}
 function toggleChat(){G.chatOff=!G.chatOff;V.chatOff=G.chatOff;allConns.forEach(cn=>{try{cn.send({t:'co',v:G.chatOff})}catch(e){}});setCO(G.chatOff)}
-function sendTxt(){const i=$('cin');sendChat(i.value,'t');i.value=''}
-function sendChat(m,k){m=String(m).trim();if(!m||!V||V.me<0||V.chatOff)return;if(isHost)bc(0,m,k);else host.send({t:'chat',m,k})}
+function sendTxt(){const i=$ قطع('cin');sendChat(i.value,'t شد');i.value=''}
+function sendChat(m؛,k){m=String(m).trim();if(! رm||!V||V.me<0||V.chatOff)return;if(isHost)bc(0,m,k);else host.send({t:'chat',m,k})}
 function bc(s,m,k){allConns.forEach(cn=>{try{cn.send({t:'chat',s,m,k})}catch(e){}});showChat(s,m,k)}
 function showChat(s,m,k){
   const n=(V&&V.names[s])||'؟',l=$('clog'),d=document.createElement('div'),b=document.createElement('b');
@@ -103,33 +134,99 @@ function showChat(s,m,k){
   while(l.children.length>50)l.firstChild.remove();l.scrollTop=1e9;
   if(k=='s'){const t=$('toast');t.textContent=n+': '+m;t.className='show';clearTimeout(tt);tt=setTimeout(()=>t.className='',2600)}
 }
-function stat(t){$('js').textContent=t}
+
+/* ---------- ساخت اتاق (میزبان) ---------- */
 function createRoom(){
   myName=esc($('name').value.trim())||'میزبان';
-  const c=Math.random().toString(36).slice(2,6).toUpperCase();
-  peer=new Peer('pasur-'+c);
-  peer.on('open',()=>{isHost=true;room=c;G={phase:'lobby',names:[myName,null,null,null],conns:[null,null,null,null],bots:[0,0,0,0],target:0,total:[0,0],over:false};sendAll()});
-  peer.on('connection',cn=>{allConns.push(cn);cn.on('data',d=>hostMsg(cn,d));cn.on('close',()=>{allConns=allConns.filter(x=>x!=cn);const i=G.conns.indexOf(cn);if(i>=0){if(G.phase=='lobby'){G.names[i]=null;G.conns[i]=null}else{G.bots[i]=1;G.msg='⚠️ '+G.names[i]+' قطع شد؛ ربات جایش بازی می‌کند';G.names[i]+=' 🤖'}sendAll()}})});
-  peer.on('error',e=>{if(e.type=='unavailable-id')createRoom();else alert('خطا در اتصال: '+e.type)});
+  try{localStorage.setItem('pasurName',myName)}catch(e){}
+  hostTries=0;openHost();
 }
-function joinRoom(){
-  myName=esc($('name').value.trim())||'بازیکن';
-  const c=$('code').value.trim().toUpperCase();if(!c)return alert('کد اتاق را بنویس');
-  room=c;stat('در حال اتصال به سرور…');const t1=setTimeout(()=>stat('❌ به سرور اتصال (PeerJS) وصل نشد. اینترنت یا فیلترشکن را عوض کن و دوباره امتحان کن.'),12000);peer=new Peer();
-  peer.on('open',()=>{clearTimeout(t1);stat('در حال اتصال به میزبان…');host=peer.connect('pasur-'+c,{reliable:true});const t2=setTimeout(()=>stat('❌ به میزبان وصل نشد. مطمئن شو میزبان صفحه را باز نگه داشته. اگر باز هم نشد، مشکل از شبکه است؛ با وای‌فای یا فیلترشکن دیگر امتحان کنید.'),15000);host.on('open',()=>clearTimeout(t2));
-    host.on('open',()=>host.send({t:'hello'}));
-    host.on('data',d=>{if(d.t=='view'){V=d.v;pc=-1;sel=[];render()}else if(d.t=='err')alert(d.m);else if(d.t=='chat')showChat(d.s,d.m,d.k);else if(d.t=='co'&&V){V.chatOff=d.v;setCO(d.v)}});
-    host.on('close',()=>alert('اتصال با میزبان قطع شد'))});
-  peer.on('error',e=>stat(e.type=='peer-unavailable'?'❌ اتاقی با این کد پیدا نشد':'❌ خطا: '+e.type));
+function openHost(){
+  if(peer){try{peer.destroy()}catch(e){}}
+  const c=cleanCode(Math.random().toString(36).slice(2,6));
+  const p=new Peer('pasur-'+c);peer=p;allConns=[];
+  p.on('open',()=>{
+    if(peer!==p)return;
+    isHost=true;room=c;
+    /* آدرس را طوری می‌کنیم که هر روش اشتراک‌گذاری، کد اتاق را داشته باشد */
+    try{history.replaceState(null,'',location.pathname+'?room='+c)}catch(e){}
+    G={phase:'lobby',names:[myName,null,null,null],conns:[null,null,null,null],bots:[0,0,0,0],target:0,total:[0,0],over:false,chatOff:false};
+    sendAll();
+  });
+  p.on('disconnected',()=>{if(peer===p){try{p.reconnect()}catch(e){}}});
+  p.on('error',e=>{
+    if(e.type=='unavailable-id'&&hostTries<5){hostTries++;try{p.destroy()}catch(_){}setTimeout(openHost,300);}
+    else if(e.type!='peer-unavailable')console.warn('peer error:',e.type);
+  });
+  p.on('connection',cn=>{
+    allConns.push(cn);
+    cn.on('data',d=>hostMsg(cn,d));
+    cn.on('close',()=>{
+      allConns=allConns.filter(x=>x!=cn);
+      if(!G)return;
+      const i=G.conns.indexOf(cn);
+      if(i>=0){
+        if(G.phase=='lobby'){G.names[i]=null;G.conns[i]=null}
+        else{G.bots[i]=1;G.msg='⚠️ '+G.names[i]+'بات جایش بازی می‌کند';G.names[i]+=' 🤖'}
+        sendAll();
+      }
+    });
+  });
 }
-function copyLink(){const u=location.origin+location.pathname+'?room='+room;navigator.clipboard.writeText(u).then(()=>alert('لینک کپی شد'),()=>prompt('لینک:',u))}
+
+/* ---------- ورود به اتاق (مهمان) ---------- */
+function joinRoom(code,nameInput,statusEl){
+  code=cleanCode(code||$('code').value);
+  const st=t=>{const el=statusEl||$('js');if(el)el.textContent=t};
+  if(!code){st('❌ کد اتاق را بنویس');return}
+  myName=esc((nameInput||$('name')).value.trim())||'بازیکن';
+  try{localStorage.setItem('pasurName',myName)}catch(e){}
+  room=code;tries=0;
+  st('در حال اتصال به سرور…');
+  if(peer){try{peer.destroy()}catch(e){}}
+  const p=new Peer();peer=p;
+  const t1=setTimeout(()=>{if(peer===p&&!host)st('❌ به سرور (PeerJS) وصل نشد. اینترنت یا فیلترشکن را عوض کن.')},12000);
+  p.on('open',()=>{
+    if(peer!==p)return;
+    clearTimeout(t1);st('در حال اتصال به میزبان…');
+    link();
+  });
+  p.on('error',e=>{
+    if(peer!==p)return;
+    if(e.type=='peer-unavailable'){
+      if(tries<3){tries++;st('اتاق پیدا نشد، تلاش مجدد ('+tries+'/3)…');setTimeout(link,1800);return}
+      st('❌ اتاقی با کد '+code+' پیدا نشد. مطمئن شو میزبان صفحه را باز نگه داشته و کد درست است.');
+    }else if(e.type=='network'||e.type=='server-error'){
+      st('❌ خطای شبکه: '+e.type);
+    }
+  });
+  function link(){
+    if(peer!==p)return;
+    host=p.connect('pasur-'+code,{reliable:true});
+    const t2=setTimeout(()=>st('❌ به میزبان وصل نشد. میزبان باید صفحه را باز نگه دارد.'),15000);
+    host.on('open',()=>{clearTimeout(t2);st('');try{host.send({t:'hello'})}catch(e){}});
+    host.on('data',d=>{
+      if(d.t=='view'){V=d.v;pc=-1;sel=[];render()}
+      else if(d.t=='err')alert(d.m);
+      else if(d.t=='chat')showChat(d.s,d.m,d.k);
+      else if(d.t=='co'&&V){V.chatOff=d.v;setCO(d.v)}
+    });
+    host.on('close',()=>st('اتصال با میزبان قطع شد'));
+  }
+}
+function copyLink(){
+  const u=location.origin+location.pathname+'?room='+encodeURIComponent(room||'');
+  navigator.clipboard.writeText(u).then(()=>alert('لینک کپی شد:\n'+u),()=>prompt('لینک:',u));
+}
 
 /* ---------- میزبان: منطق بازی ---------- */
 function hostMsg(cn,d){
+  if(!G)return;
   if(d.t=='hello')sendAll();
   else if(d.t=='sit'&&G.phase=='lobby'&&d.seat>0&&d.seat<4&&!G.names[d.seat]){
     const o=G.conns.indexOf(cn);if(o>=0){G.names[o]=null;G.conns[o]=null}
-    G.names[d.seat]=esc(d.name).slice(0,14);G.conns[d.seat]=cn;sendAll()}
+    G.names[d.seat]=esc(d.name).slice(0,14);G.conns[d.seat]=cn;sendAll();
+  }
   else if(d.t=='play'){const e=doPlay(G.conns.indexOf(cn),d.ci,d.sel);if(e)cn.send({t:'err',m:e})}
   else if(d.t=='chat'){const q=G.conns.indexOf(cn);if(q>=0&&!G.chatOff)bc(q,String(d.m).slice(0,120),d.k)}
 }
@@ -225,7 +322,6 @@ function board(b){
   const my=V.me<0?0:V.me,n=k=>(my+k)%4,tm=V.tm[my];
   const two=V.act.length==2,op=V.act.find(x=>x!=my),ev=V.ev,fresh=!!ev&&ev.id!=lastEv;
   const mini=c=>'<span class="mc'+(c.s=='H'||c.s=='D'?' red':'')+'">'+RL(c.r)+SU[c.s]+'</span>';
-  const lm=e=>e?'<div class="lm">'+V.names[e.seat]+': '+mini(e.card)+(e.cap?' ⟵ '+e.cap.map(mini).join(' ')+(e.sur?' ✨ پاسور':''):' ⬇ روی زمین')+'</div>':'';
   const dir=x=>x==my?[0,70]:two?[0,-70]:[[0,70],[-120,0],[0,-70],[120,0]][(x-my+4)%4];
   const ps=x=>V.act.includes(x)?'<div class="p '+(V.turn==x?'on':'')+'">'+V.names[x]+(V.tm[x]==tm&&x!=my?' (هم‌تیمی)':'')+'<br>🂠 '+V.cnt[x]+'</div>':'';
   if(V.phase=='end'){
@@ -247,6 +343,12 @@ function board(b){
   g.textContent=!mine?'نوبت '+V.names[V.turn]:pc<0?'یک کارت انتخاب کن':isJ?'سرباز بزن':sel.length?'بردار':'روی زمین بگذار';
   g.onclick=()=>{const ci=pc,s=sel;pc=-1;sel=[];if(isHost){const e=doPlay(0,ci,s);if(e){alert(e);render()}}else host.send({t:'play',ci,sel:s})};
 }
+
+/* ---------- زنده نگه داشتن اتصال ---------- */
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden&&peer&&!peer.destroyed&&peer.disconnected){try{peer.reconnect()}catch(e){}}
+});
+window.addEventListener('online',()=>{if(peer&&!peer.destroyed&&peer.disconnected){try{peer.reconnect()}catch(e){}}});
 </script>
 </body>
 </html>
