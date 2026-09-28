@@ -59,11 +59,11 @@ h1{font-size:34px;font-weight:900;margin:24px 0 4px;color:#e8c26a}
   <div style="opacity:.8">دو تیم دو نفره؛ اتاق بساز، کد یا لینک را بفرست، دوستانت وارد شوند.</div>
   <div class="box">
    <input id="name" placeholder="اسم شما" maxlength="14">
-   <button onclick="createRoom()">ساخت اتاق جدید</button>
+   <button id="cbtn" onclick="createRoom()">ساخت اتاق جدید</button>
   </div>
   <div class="box">
    <input id="code" placeholder="کد اتاق" maxlength="4" style="text-transform:uppercase;direction:ltr;text-align:center">
-   <button class="g" onclick="joinRoom()">ورود با کد</button><div id="js" style="color:#e8c26a;min-height:20px;font-size:14px"></div>
+   <button class="g" id="jbtn" onclick="joinRoom()">ورود با کد</button><div id="js" style="color:#e8c26a;min-height:20px;font-size:14px"></div>
   </div>
  </div>
  <div id="app" hidden>
@@ -79,7 +79,13 @@ const $=id=>document.getElementById(id);
 const SU={S:'♠',H:'♥',D:'♦',C:'♣'};
 const RL=r=>r==1?'A':r==11?'J':r==12?'Q':r==13?'K':r;
 let peer,room,host,isHost=false,G=null,V=null,pc=-1,sel=[],myName='',allConns=[];
-$('code').value=(new URLSearchParams(location.search).get('room')||'').toUpperCase();
+$('code').value=(new URLSearchParams(location.search).get('room')||'').toUpperCase().slice(0,4);
+if($('code').value){
+  const nb=$('name').parentNode,cb=$('cbtn'),jb=$('jbtn'),iv=document.createElement('div');
+  $('home').prepend(cb);cb.className='g';cb.style.cssText='padding:4px 10px;font-size:12px;margin-bottom:4px';
+  iv.textContent='دعوت به اتاق '+$('code').value;iv.style.cssText='color:#e8c26a;font-weight:700';
+  jb.className='';jb.textContent='ورود به بازی';nb.prepend(iv);nb.append(jb,$('js'));$('code').parentNode.style.display='none';
+}
 
 /* ---------- اتصال ---------- */
 const esc=t=>String(t).replace(/[&<>"']/g,'');
