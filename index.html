@@ -65,8 +65,8 @@ function createRoom(){
   myName=$('name').value.trim()||'میزبان';
   const c=Math.random().toString(36).slice(2,6).toUpperCase();
   peer=new Peer('pasur-'+c);
-  peer.on('open',()=>{isHost=true;room=c;G={phase:'lobby',names:[myName,null,null,null],conns:[null,null,null,null]};sendAll()});
-  peer.on('connection',cn=>{allConns.push(cn);cn.on('data',d=>hostMsg(cn,d));cn.on('close',()=>{allConns=allConns.filter(x=>x!=cn);const i=G.conns.indexOf(cn);if(i>=0){if(G.phase=='lobby'){G.names[i]=null;G.conns[i]=null}else G.msg='⚠️ '+G.names[i]+' قطع شد';sendAll()}})});
+  peer.on('open',()=>{isHost=true;room=c;G={phase:'lobby',names:[myName,null,null,null],conns:[null,null,null,null],bots:[0,0,0,0]};sendAll()});
+  peer.on('connection',cn=>{allConns.push(cn);cn.on('data',d=>hostMsg(cn,d));cn.on('close',()=>{allConns=allConns.filter(x=>x!=cn);const i=G.conns.indexOf(cn);if(i>=0){if(G.phase=='lobby'){G.names[i]=null;G.conns[i]=null}else{G.bots[i]=1;G.msg='⚠️ '+G.names[i]+' قطع شد؛ ربات جایش بازی می‌کند';G.names[i]+=' 🤖'}sendAll()}})});
   peer.on('error',e=>{if(e.type=='unavailable-id')createRoom();else alert('خطا در اتصال: '+e.type)});
 }
 function joinRoom(){
@@ -90,12 +90,12 @@ function hostMsg(cn,d){
   else if(d.t=='play'){const e=doPlay(G.conns.indexOf(cn),d.ci,d.sel);if(e)cn.send({t:'err',m:e})}
 }
 function view(s){return{me:s,phase:G.phase,names:G.names,table:G.table||[],hand:s>=0&&G.hands?G.hands[s]:[],cnt:G.hands?G.hands.map(h=>h.length):[0,0,0,0],turn:G.turn,cc:G.cap?G.cap.map(a=>a.length):[0,0],sur:G.sur||[0,0],msg:G.msg||'',res:G.res}}
-function sendAll(){allConns.forEach(cn=>{const s=G.conns.indexOf(cn);try{cn.send({t:'view',v:view(s)})}catch(e){}});V=view(0);pc=-1;sel=[];render()}
+function sendAll(){allConns.forEach(cn=>{const s=G.conns.indexOf(cn);try{cn.send({t:'view',v:view(s)})}catch(e){}});V=view(0);pc=-1;sel=[];render();clearTimeout(bt);if(G.phase=='play'&&G.bots[G.turn])bt=setTimeout(botPlay,1300)}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function deal(){G.hands=[0,1,2,3].map(()=>G.deck.splice(0,4).sort((a,b)=>a.r-b.r))}
 function startGame(){
   let d;do{d=[];for(const s of 'SHDC')for(let r=1;r<=13;r++)d.push({r,s});shuffle(d)}while(d.slice(0,4).some(c=>c.r==11));
-  G.deck=d;G.table=G.deck.splice(0,4);G.cap=[[],[]];G.sur=[0,0];G.turn=0;G.last=0;G.phase='play';G.res=null;deal();G.msg='بازی شروع شد';sendAll();
+  for(let i=0;i<4;i++)if(!G.names[i]){G.names[i]='🤖 ربات '+(i+1);G.bots[i]=1}G.deck=d;G.table=G.deck.splice(0,4);G.cap=[[],[]];G.sur=[0,0];G.turn=0;G.last=0;G.phase='play';G.res=null;deal();G.msg='بازی شروع شد';sendAll();
 }
 function part(a){if(!a.length)return true;const[f,...r]=a,n=r.length;for(let m=0;m<1<<n;m++){let s=f;const rest=[];for(let i=0;i<n;i++)(m>>i&1)?s+=r[i]:rest.push(r[i]);if(s==11&&part(rest))return true}return false}
 function doPlay(s,ci,si){
@@ -126,6 +126,24 @@ function finish(){
   G.res={p,cards:G.cap.map(a=>a.length),sur:G.sur};G.phase='end';G.msg='';sendAll();return '';
 }
 
+let bt;
+function botPlay(){
+  if(G.phase!='play'||!G.bots[G.turn])return;
+  const s=G.turn,h=G.hands[s],T=G.table;let best=null,bs=-1e9;
+  h.forEach((c,ci)=>{
+    const opts=[[]];
+    if(c.r<11){const ix=T.map((t,i)=>i).filter(i=>T[i].r<=10);for(let m=1;m<1<<ix.length;m++){const x=ix.filter((_,k)=>m>>k&1);if(part([c.r,...x.map(i=>T[i].r)]))opts.push(x)}}
+    else if(c.r>11)T.forEach((t,i)=>{if(t.r==c.r)opts.push([i])});
+    opts.forEach(x=>{
+      const cap=c.r==11?T.filter(t=>t.r<12):x.map(i=>T[i]);let sc;
+      if(cap.length){sc=10+cap.length*2+cap.filter(t=>t.s=='C').length+cap.filter(t=>t.r==1).length+cap.filter(t=>t.r==10&&t.s=='D').length*6+cap.filter(t=>t.r==2&&t.s=='C').length*4+Math.random();if(c.r==11&&cap.length<3)sc-=8}
+      else sc=-c.r*.5-(c.r==11?20:0)-(c.r==10&&c.s=='D'?30:0)-(c.r==2&&c.s=='C'?20:0)+Math.random();
+      if(sc>bs){bs=sc;best=[ci,x]}
+    });
+  });
+  if(doPlay(s,best[0],best[1]))doPlay(s,0,[]);
+}
+
 /* ---------- رابط کاربری ---------- */
 function cardEl(c,cls,fn){const d=document.createElement('div');d.className='c '+(c.s=='H'||c.s=='D'?'red ':'')+(cls||'');d.innerHTML='<b>'+RL(c.r)+'</b><i>'+SU[c.s]+'</i>';if(fn)d.onclick=fn;return d}
 function render(){
@@ -141,7 +159,7 @@ function lobby(b){
     h+='<div class="seat"><span>صندلی '+(i+1)+' ('+team(i)+')</span>'+(n?'<b>'+n+(i==V.me?' (شما)':'')+'</b>':(!isHost&&i>0?'<button onclick="sit('+i+')">اینجا می‌نشینم</button>':'<span style="opacity:.5">خالی</span>'))+'</div>';
   }
   h+='</div>';
-  if(isHost)h+='<div class="act"><button id="st" onclick="startGame()" '+(V.names.every(x=>x)?'':'disabled')+'>شروع بازی</button></div>';
+  if(isHost)h+='<div class="act"><button id="st" onclick="startGame()" '+''+'>شروع بازی</button><div style="font-size:13px;opacity:.8;margin-top:8px">صندلی‌های خالی را ربات پر می‌کند</div></div>';
   else h+='<div class="msg">منتظر شروع بازی توسط میزبان…</div>';
   b.innerHTML=h;
 }
