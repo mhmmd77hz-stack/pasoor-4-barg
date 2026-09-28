@@ -31,6 +31,23 @@ h1{font-size:34px;font-weight:900;margin:24px 0 4px;color:#e8c26a}
 .msg{text-align:center;min-height:24px;font-size:15px;color:#e8c26a}
 .act{text-align:center}
 .res{text-align:center;font-size:18px;line-height:2}
+.lm{text-align:center;font-size:14px;margin:4px 0;display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap}
+.mc{display:inline-block;background:#fbf6e6;color:#1c1c1c;border-radius:5px;padding:1px 6px;font-weight:700;direction:ltr}
+.mc.red{color:#c1272d}
+.tb{position:relative}
+.c.new{animation:drop .5s ease-out}
+@keyframes drop{from{transform:translateY(-70px) scale(1.25);opacity:0}to{transform:none;opacity:1}}
+.gh{position:absolute;inset:0;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-content:center;pointer-events:none;background:#0b3d2be6;border-radius:16px;animation:go 1.8s ease-in forwards}
+.gh .c{outline:3px solid #e8c26a}
+@keyframes go{0%{opacity:1;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.4)}}
+#chat{margin-top:14px;background:#00000030;border:1px solid #e8c26a44;border-radius:14px;padding:10px;display:grid;gap:8px}
+#clog{max-height:90px;overflow:auto;font-size:14px;line-height:1.7}
+#stk{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.sb{padding:6px 10px;white-space:nowrap;font-size:18px;flex:none}
+.crow{display:flex;gap:6px}
+#toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#000d;border:1px solid #e8c26a;padding:8px 18px;border-radius:18px;font-size:26px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9;white-space:nowrap}
+#toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){.gh{display:none}.c.new{animation:none}}
 </style>
 </head>
 <body>
@@ -50,6 +67,8 @@ h1{font-size:34px;font-weight:900;margin:24px 0 4px;color:#e8c26a}
  <div id="app" hidden>
   <div class="bar"><span>کد اتاق: <b id="rc" style="font-size:20px;letter-spacing:3px"></b></span><button class="g" onclick="copyLink()">کپی لینک دعوت</button></div>
   <div id="main"></div>
+  <div id="chat"><div class="bar"><span id="cn" style="display:none">🔇 چت توسط میزبان بسته شده</span><button id="ct" class="g" style="display:none" onclick="toggleChat()"></button></div><div id="clog"></div><div id="stk"></div><div class="crow" id="crow"><input id="cin" maxlength="120" placeholder="پیام…" onkeydown="if(event.key=='Enter')sendTxt()"><button onclick="sendTxt()">ارسال</button></div></div>
+  <div id="toast"></div>
  </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
@@ -61,10 +80,25 @@ let peer,room,host,isHost=false,G=null,V=null,pc=-1,sel=[],myName='',allConns=[]
 $('code').value=(new URLSearchParams(location.search).get('room')||'').toUpperCase();
 
 /* ---------- اتصال ---------- */
+const esc=t=>String(t).replace(/[&<>"']/g,'');
+const STK=['👏','😂','😡','🔥','🤝','😎','🙏','😭','🤔','💪','آفرین!','بد شانسی 😅','یالا زود باش','پاسور!'];
+let tt,lastEv=0;
+STK.forEach(e=>{const b=document.createElement('button');b.className='g sb';b.textContent=e;b.onclick=()=>sendChat(e,'s');$('stk').append(b)});
+function setCO(off){$('stk').style.display=$('crow').style.display=off?'none':'';$('cn').style.display=off?'':'none';const b=$('ct');b.style.display=isHost?'':'none';b.textContent=off?'🔊 وصل کردن چت':'🔇 قطع چت'}
+function toggleChat(){G.chatOff=!G.chatOff;V.chatOff=G.chatOff;allConns.forEach(cn=>{try{cn.send({t:'co',v:G.chatOff})}catch(e){}});setCO(G.chatOff)}
+function sendTxt(){const i=$('cin');sendChat(i.value,'t');i.value=''}
+function sendChat(m,k){m=String(m).trim();if(!m||!V||V.me<0||V.chatOff)return;if(isHost)bc(0,m,k);else host.send({t:'chat',m,k})}
+function bc(s,m,k){allConns.forEach(cn=>{try{cn.send({t:'chat',s,m,k})}catch(e){}});showChat(s,m,k)}
+function showChat(s,m,k){
+  const n=(V&&V.names[s])||'؟',l=$('clog'),d=document.createElement('div'),b=document.createElement('b');
+  b.textContent=n+': ';d.append(b,document.createTextNode(m));l.append(d);
+  while(l.children.length>50)l.firstChild.remove();l.scrollTop=1e9;
+  if(k=='s'){const t=$('toast');t.textContent=n+': '+m;t.className='show';clearTimeout(tt);tt=setTimeout(()=>t.className='',2600)}
+}
 const PC={config:{iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'},{urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},{urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},{urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}]}};
 function stat(t){$('js').textContent=t}
 function createRoom(){
-  myName=$('name').value.trim()||'میزبان';
+  myName=esc($('name').value.trim())||'میزبان';
   const c=Math.random().toString(36).slice(2,6).toUpperCase();
   peer=new Peer('pasur-'+c,PC);
   peer.on('open',()=>{isHost=true;room=c;G={phase:'lobby',names:[myName,null,null,null],conns:[null,null,null,null],bots:[0,0,0,0]};sendAll()});
@@ -72,12 +106,12 @@ function createRoom(){
   peer.on('error',e=>{if(e.type=='unavailable-id')createRoom();else alert('خطا در اتصال: '+e.type)});
 }
 function joinRoom(){
-  myName=$('name').value.trim()||'بازیکن';
+  myName=esc($('name').value.trim())||'بازیکن';
   const c=$('code').value.trim().toUpperCase();if(!c)return alert('کد اتاق را بنویس');
   room=c;stat('در حال اتصال به سرور…');const t1=setTimeout(()=>stat('❌ به سرور اتصال (PeerJS) وصل نشد. اینترنت یا فیلترشکن را عوض کن و دوباره امتحان کن.'),12000);peer=new Peer(undefined,PC);
   peer.on('open',()=>{clearTimeout(t1);stat('در حال اتصال به میزبان…');host=peer.connect('pasur-'+c,{reliable:true});const t2=setTimeout(()=>stat('❌ به میزبان وصل نشد. مطمئن شو میزبان صفحه را باز نگه داشته. اگر باز هم نشد، مشکل از شبکه است؛ با وای‌فای یا فیلترشکن دیگر امتحان کنید.'),15000);host.on('open',()=>clearTimeout(t2));
     host.on('open',()=>host.send({t:'hello'}));
-    host.on('data',d=>{if(d.t=='view'){V=d.v;pc=-1;sel=[];render()}else if(d.t=='err')alert(d.m)});
+    host.on('data',d=>{if(d.t=='view'){V=d.v;pc=-1;sel=[];render()}else if(d.t=='err')alert(d.m);else if(d.t=='chat')showChat(d.s,d.m,d.k);else if(d.t=='co'&&V){V.chatOff=d.v;setCO(d.v)}});
     host.on('close',()=>alert('اتصال با میزبان قطع شد'))});
   peer.on('error',e=>stat(e.type=='peer-unavailable'?'❌ اتاقی با این کد پیدا نشد':'❌ خطا: '+e.type));
 }
@@ -88,10 +122,11 @@ function hostMsg(cn,d){
   if(d.t=='hello')sendAll();
   else if(d.t=='sit'&&G.phase=='lobby'&&d.seat>0&&d.seat<4&&!G.names[d.seat]){
     const o=G.conns.indexOf(cn);if(o>=0){G.names[o]=null;G.conns[o]=null}
-    G.names[d.seat]=String(d.name).slice(0,14);G.conns[d.seat]=cn;sendAll()}
+    G.names[d.seat]=esc(d.name).slice(0,14);G.conns[d.seat]=cn;sendAll()}
   else if(d.t=='play'){const e=doPlay(G.conns.indexOf(cn),d.ci,d.sel);if(e)cn.send({t:'err',m:e})}
+  else if(d.t=='chat'){const q=G.conns.indexOf(cn);if(q>=0&&!G.chatOff)bc(q,String(d.m).slice(0,120),d.k)}
 }
-function view(s){return{me:s,phase:G.phase,names:G.names,table:G.table||[],hand:s>=0&&G.hands?G.hands[s]:[],cnt:G.hands?G.hands.map(h=>h.length):[0,0,0,0],turn:G.turn,cc:G.cap?G.cap.map(a=>a.length):[0,0],sur:G.sur||[0,0],msg:G.msg||'',res:G.res,tm:G.team||[0,1,0,1],act:G.act||[0,1,2,3]}}
+function view(s){return{me:s,phase:G.phase,names:G.names,table:G.table||[],hand:s>=0&&G.hands?G.hands[s]:[],cnt:G.hands?G.hands.map(h=>h.length):[0,0,0,0],turn:G.turn,cc:G.cap?G.cap.map(a=>a.length):[0,0],sur:G.sur||[0,0],msg:G.msg||'',res:G.res,tm:G.team||[0,1,0,1],act:G.act||[0,1,2,3],ev:G.ev||null,chatOff:!!G.chatOff}}
 function sendAll(){allConns.forEach(cn=>{const s=G.conns.indexOf(cn);try{cn.send({t:'view',v:view(s)})}catch(e){}});V=view(0);pc=-1;sel=[];render();clearTimeout(bt);if(G.phase=='play'&&G.bots[G.turn])bt=setTimeout(botPlay,1300)}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function deal(){G.hands=[0,1,2,3].map(i=>G.act.includes(i)?G.deck.splice(0,4).sort((a,b)=>a.r-b.r):[])}
@@ -100,7 +135,13 @@ function startGame(m){
   let d;do{d=[];for(const s of 'SHDC')for(let r=1;r<=13;r++)d.push({r,s});shuffle(d)}while(d.slice(0,4).some(c=>c.r==11));
   if(m!=2)for(let i=0;i<4;i++)if(!G.names[i]){G.names[i]='🤖 ربات '+(i+1);G.bots[i]=1}
   G.act=m==2?[0,1,2,3].filter(i=>G.names[i]):[0,1,2,3];G.team=[0,1,0,1];if(m==2){G.team=[0,0,0,0];G.team[G.act[1]]=1}
-  G.deck=d;G.table=G.deck.splice(0,4);G.cap=[[],[]];G.sur=[0,0];G.turn=G.act[0];G.last=0;G.phase='play';G.res=null;deal();G.msg='بازی شروع شد';sendAll();
+  G.deck=d;G.table=G.deck.splice(0,4);G.cap=[[],[]];G.sur=[0,0];if(G.phase=='lobby')G.st=G.act[0];else{let q=G.st;do{q=(q+1)%4}while(!G.act.includes(q));G.st=q}G.turn=G.st;G.last=0;G.phase='play';G.res=null;G.ev=null;deal();G.msg=G.names[G.st]+' شروع می‌کند';sendAll();
+}
+function canCap(c,T){
+  if(c.r==11)return T.some(t=>t.r<12);
+  if(c.r>11)return T.some(t=>t.r==c.r);
+  const r=new Set([0]);T.filter(t=>t.r<=10).forEach(t=>{[...r].forEach(u=>{if(u+t.r<=11)r.add(u+t.r)})});
+  return r.has(11-c.r);
 }
 function part(a){if(!a.length)return true;const[f,...r]=a,n=r.length;for(let m=0;m<1<<n;m++){let s=f;const rest=[];for(let i=0;i<n;i++)(m>>i&1)?s+=r[i]:rest.push(r[i]);if(s==11&&part(rest))return true}return false}
 function doPlay(s,ci,si){
@@ -111,13 +152,14 @@ function doPlay(s,ci,si){
   if(c.r==11){const x=G.table.filter(t=>t.r<12);if(x.length)cap=x}
   else if(c.r>11){if(sl.length==1&&sl[0].r==c.r)cap=sl;else if(sl.length)return 'شاه و بی‌بی فقط هم‌شکل خودشان را می‌برند'}
   else if(sl.length){if(sl.some(t=>t.r>10)||!part([c.r,...sl.map(t=>t.r)]))return 'مجموع کارت‌ها باید ۱۱ شود';cap=sl}
+  if(!cap&&canCap(c,G.table))return 'با این کارت می‌توانی برداری؛ باید کارت‌های زمین را انتخاب کنی و نمی‌شود فقط آن را بیندازی';
   h.splice(ci,1);
   const t=G.team[s],nm=G.names[s];
   if(cap){
     G.table=G.table.filter(x=>!cap.includes(x));G.cap[t].push(c,...cap);G.last=t;
     const more=G.deck.length||G.hands.some(x=>x.length);
-    if(!G.table.length&&c.r!=11&&more){G.sur[t]++;G.msg=nm+' پاسور کرد! ✨'}else G.msg=nm+' '+cap.length+' کارت برد'
-  }else{G.table.push(c);G.msg=nm+' یک کارت روی زمین گذاشت'}
+    const sr=!G.table.length&&c.r!=11&&more;G.ev={id:(G.evn=(G.evn||0)+1),seat:s,card:c,cap:cap.map(x=>x),sur:sr};if(sr){G.sur[t]++;G.msg=nm+' پاسور کرد! ✨'}else G.msg=nm+' '+cap.length+' کارت برد'
+  }else{G.table.push(c);G.ev={id:(G.evn=(G.evn||0)+1),seat:s,card:c,cap:null};G.msg=nm+' یک کارت روی زمین گذاشت'}
   if(!G.hands.some(x=>x.length)){if(G.deck.length)deal();else return finish()}
   do{s=(s+1)%4}while(!G.act.includes(s));G.turn=s;sendAll();return '';
 }
@@ -139,6 +181,7 @@ function botPlay(){
     const opts=[[]];
     if(c.r<11){const ix=T.map((t,i)=>i).filter(i=>T[i].r<=10);for(let m=1;m<1<<ix.length;m++){const x=ix.filter((_,k)=>m>>k&1);if(part([c.r,...x.map(i=>T[i].r)]))opts.push(x)}}
     else if(c.r>11)T.forEach((t,i)=>{if(t.r==c.r)opts.push([i])});
+    if(c.r!=11&&opts.length>1)opts.shift();
     opts.forEach(x=>{
       const cap=c.r==11?T.filter(t=>t.r<12):x.map(i=>T[i]);let sc;
       if(cap.length){sc=10+cap.length*2+cap.filter(t=>t.s=='C').length+cap.filter(t=>t.r==1).length+cap.filter(t=>t.r==10&&t.s=='D').length*6+cap.filter(t=>t.r==2&&t.s=='C').length*4+Math.random();if(c.r==11&&cap.length<3)sc-=8}
@@ -153,7 +196,7 @@ function botPlay(){
 function cardEl(c,cls,fn){const d=document.createElement('div');d.className='c '+(c.s=='H'||c.s=='D'?'red ':'')+(cls||'');d.innerHTML='<b>'+RL(c.r)+'</b><i>'+SU[c.s]+'</i>';if(fn)d.onclick=fn;return d}
 function render(){
   $('home').hidden=!!V;$('app').hidden=!V;if(!V)return;
-  $('rc').textContent=room;const b=$('main');b.innerHTML='';
+  $('rc').textContent=room;setCO(!!V.chatOff);const b=$('main');b.innerHTML='';
   V.phase=='lobby'?lobby(b):board(b);
 }
 function team(i){return i%2?'تیم ۲':'تیم ۱'}
@@ -171,7 +214,10 @@ function lobby(b){
 function sit(i){host.send({t:'sit',seat:i,name:myName})}
 function board(b){
   const my=V.me<0?0:V.me,n=k=>(my+k)%4,tm=V.tm[my];
-  const two=V.act.length==2,op=V.act.find(x=>x!=my);
+  const two=V.act.length==2,op=V.act.find(x=>x!=my),ev=V.ev,fresh=!!ev&&ev.id!=lastEv;
+  const mini=c=>'<span class="mc'+(c.s=='H'||c.s=='D'?' red':'')+'">'+RL(c.r)+SU[c.s]+'</span>';
+  const lm=e=>e?'<div class="lm">'+V.names[e.seat]+': '+mini(e.card)+(e.cap?' ⟵ '+e.cap.map(mini).join(' ')+(e.sur?' ✨ پاسور':''):' ⬇ روی زمین')+'</div>':'';
+  const dir=x=>x==my?[0,150]:two?[0,-150]:[[0,150],[-150,0],[0,-150],[150,0]][(x-my+4)%4];
   const ps=x=>V.act.includes(x)?'<div class="p '+(V.turn==x?'on':'')+'">'+V.names[x]+(V.tm[x]==tm&&x!=my?' (هم‌تیمی)':'')+'<br>🂠 '+V.cnt[x]+'</div>':'';
   if(V.phase=='end'){
     const mem=t=>V.act.filter(x=>V.tm[x]==t).map(x=>V.names[x]).join(' و '),nm=t=>V.act.length==2?mem(t):team(t)+' ('+mem(t)+')';
@@ -181,8 +227,10 @@ function board(b){
   }
   b.innerHTML='<div class="bar box" style="padding:8px 14px"><span>ما: '+V.cc[tm]+' کارت، '+V.sur[tm]+' پاسور</span><span>حریف: '+V.cc[1-tm]+' کارت، '+V.sur[1-tm]+' پاسور</span></div>'
    +'<div class="top">'+ps(two?op:n(2))+'</div><div class="mid">'+(two?'':ps(n(3)))+'<div class="tb" id="tb"></div>'+(two?'':ps(n(1)))+'</div>'
-   +'<div class="msg">'+V.msg+'</div><div class="hand" id="hd"></div><div class="act"><button id="go"></button></div>';
-  V.table.forEach((c,i)=>$('tb').append(cardEl(c,sel.includes(i)?'sel':'',()=>{if(pc<0)return;sel=sel.includes(i)?sel.filter(x=>x!=i):[...sel,i];render()})));
+   +'<div class="msg">'+V.msg+'</div>'+lm(ev)+'<div class="hand" id="hd"></div><div class="act"><button id="go"></button></div>';
+  V.table.forEach((c,i)=>$('tb').append(cardEl(c,(sel.includes(i)?'sel':'')+(fresh&&!ev.cap&&i==V.table.length-1?' new':''),()=>{if(pc<0)return;sel=sel.includes(i)?sel.filter(x=>x!=i):[...sel,i];render()})));
+  if(fresh&&ev.cap){const g=document.createElement('div'),d=dir(ev.seat);g.className='gh';g.style.setProperty('--dx',d[0]+'px');g.style.setProperty('--dy',d[1]+'px');[ev.card,...ev.cap].forEach(c=>g.append(cardEl(c)));$('tb').append(g)}
+  if(ev)lastEv=ev.id;
   V.hand.forEach((c,i)=>$('hd').append(cardEl(c,pc==i?'sel':'',()=>{pc=pc==i?-1:i;sel=[];render()})));
   const g=$('go'),mine=V.turn==V.me;
   const isJ=pc>=0&&V.hand[pc].r==11;
