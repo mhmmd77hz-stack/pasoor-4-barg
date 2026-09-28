@@ -89,13 +89,16 @@ function hostMsg(cn,d){
     G.names[d.seat]=String(d.name).slice(0,14);G.conns[d.seat]=cn;sendAll()}
   else if(d.t=='play'){const e=doPlay(G.conns.indexOf(cn),d.ci,d.sel);if(e)cn.send({t:'err',m:e})}
 }
-function view(s){return{me:s,phase:G.phase,names:G.names,table:G.table||[],hand:s>=0&&G.hands?G.hands[s]:[],cnt:G.hands?G.hands.map(h=>h.length):[0,0,0,0],turn:G.turn,cc:G.cap?G.cap.map(a=>a.length):[0,0],sur:G.sur||[0,0],msg:G.msg||'',res:G.res}}
+function view(s){return{me:s,phase:G.phase,names:G.names,table:G.table||[],hand:s>=0&&G.hands?G.hands[s]:[],cnt:G.hands?G.hands.map(h=>h.length):[0,0,0,0],turn:G.turn,cc:G.cap?G.cap.map(a=>a.length):[0,0],sur:G.sur||[0,0],msg:G.msg||'',res:G.res,tm:G.team||[0,1,0,1],act:G.act||[0,1,2,3]}}
 function sendAll(){allConns.forEach(cn=>{const s=G.conns.indexOf(cn);try{cn.send({t:'view',v:view(s)})}catch(e){}});V=view(0);pc=-1;sel=[];render();clearTimeout(bt);if(G.phase=='play'&&G.bots[G.turn])bt=setTimeout(botPlay,1300)}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-function deal(){G.hands=[0,1,2,3].map(()=>G.deck.splice(0,4).sort((a,b)=>a.r-b.r))}
-function startGame(){
+function deal(){G.hands=[0,1,2,3].map(i=>G.act.includes(i)?G.deck.splice(0,4).sort((a,b)=>a.r-b.r):[])}
+function startGame(m){
+  G.mode=m;if(m==2&&G.names.filter(x=>x).length!=2)return alert('برای بازی دو نفره دقیقاً دو نفر باید نشسته باشند');
   let d;do{d=[];for(const s of 'SHDC')for(let r=1;r<=13;r++)d.push({r,s});shuffle(d)}while(d.slice(0,4).some(c=>c.r==11));
-  for(let i=0;i<4;i++)if(!G.names[i]){G.names[i]='🤖 ربات '+(i+1);G.bots[i]=1}G.deck=d;G.table=G.deck.splice(0,4);G.cap=[[],[]];G.sur=[0,0];G.turn=0;G.last=0;G.phase='play';G.res=null;deal();G.msg='بازی شروع شد';sendAll();
+  if(m!=2)for(let i=0;i<4;i++)if(!G.names[i]){G.names[i]='🤖 ربات '+(i+1);G.bots[i]=1}
+  G.act=m==2?[0,1,2,3].filter(i=>G.names[i]):[0,1,2,3];G.team=[0,1,0,1];if(m==2){G.team=[0,0,0,0];G.team[G.act[1]]=1}
+  G.deck=d;G.table=G.deck.splice(0,4);G.cap=[[],[]];G.sur=[0,0];G.turn=G.act[0];G.last=0;G.phase='play';G.res=null;deal();G.msg='بازی شروع شد';sendAll();
 }
 function part(a){if(!a.length)return true;const[f,...r]=a,n=r.length;for(let m=0;m<1<<n;m++){let s=f;const rest=[];for(let i=0;i<n;i++)(m>>i&1)?s+=r[i]:rest.push(r[i]);if(s==11&&part(rest))return true}return false}
 function doPlay(s,ci,si){
@@ -107,14 +110,14 @@ function doPlay(s,ci,si){
   else if(c.r>11){if(sl.length==1&&sl[0].r==c.r)cap=sl;else if(sl.length)return 'شاه و بی‌بی فقط هم‌شکل خودشان را می‌برند'}
   else if(sl.length){if(sl.some(t=>t.r>10)||!part([c.r,...sl.map(t=>t.r)]))return 'مجموع کارت‌ها باید ۱۱ شود';cap=sl}
   h.splice(ci,1);
-  const t=s%2,nm=G.names[s];
+  const t=G.team[s],nm=G.names[s];
   if(cap){
     G.table=G.table.filter(x=>!cap.includes(x));G.cap[t].push(c,...cap);G.last=t;
     const more=G.deck.length||G.hands.some(x=>x.length);
     if(!G.table.length&&c.r!=11&&more){G.sur[t]++;G.msg=nm+' پاسور کرد! ✨'}else G.msg=nm+' '+cap.length+' کارت برد'
   }else{G.table.push(c);G.msg=nm+' یک کارت روی زمین گذاشت'}
   if(!G.hands.some(x=>x.length)){if(G.deck.length)deal();else return finish()}
-  G.turn=(s+1)%4;sendAll();return '';
+  do{s=(s+1)%4}while(!G.act.includes(s));G.turn=s;sendAll();return '';
 }
 function finish(){
   G.cap[G.last].push(...G.table);G.table=[];
@@ -159,21 +162,23 @@ function lobby(b){
     h+='<div class="seat"><span>صندلی '+(i+1)+' ('+team(i)+')</span>'+(n?'<b>'+n+(i==V.me?' (شما)':'')+'</b>':(!isHost&&i>0?'<button onclick="sit('+i+')">اینجا می‌نشینم</button>':'<span style="opacity:.5">خالی</span>'))+'</div>';
   }
   h+='</div>';
-  if(isHost)h+='<div class="act"><button id="st" onclick="startGame()" '+''+'>شروع بازی</button><div style="font-size:13px;opacity:.8;margin-top:8px">صندلی‌های خالی را ربات پر می‌کند</div></div>';
+  if(isHost)h+='<div class="act" style="display:grid;gap:8px"><button onclick="startGame(4)">شروع ۴ نفره (جای خالی = ربات)</button><button class="g" onclick="startGame(2)" '+(V.names.filter(x=>x).length==2?'':'disabled')+'>شروع دو نفره (بدون ربات)</button><div style="font-size:13px;opacity:.8">حالت دو نفره وقتی فعال می‌شود که دقیقاً دو نفر نشسته باشند.</div></div>';
   else h+='<div class="msg">منتظر شروع بازی توسط میزبان…</div>';
   b.innerHTML=h;
 }
 function sit(i){host.send({t:'sit',seat:i,name:myName})}
 function board(b){
-  const my=V.me<0?0:V.me,n=k=>(my+k)%4,tm=my%2;
-  const pl=k=>'<div class="p '+(V.turn==n(k)?'on':'')+'">'+V.names[n(k)]+(n(k)%2==tm&&k?' (هم‌تیمی)':'')+'<br>🂠 '+V.cnt[n(k)]+'</div>';
+  const my=V.me<0?0:V.me,n=k=>(my+k)%4,tm=V.tm[my];
+  const two=V.act.length==2,op=V.act.find(x=>x!=my);
+  const ps=x=>V.act.includes(x)?'<div class="p '+(V.turn==x?'on':'')+'">'+V.names[x]+(V.tm[x]==tm&&x!=my?' (هم‌تیمی)':'')+'<br>🂠 '+V.cnt[x]+'</div>':'';
   if(V.phase=='end'){
-    const r=V.res,w=r.p[0]==r.p[1]?'مساوی':(r.p[0]>r.p[1]?'تیم ۱':'تیم ۲')+' برنده شد 🏆';
-    b.innerHTML='<div class="box res"><b style="font-size:24px">'+w+'</b>'+[0,1].map(t=>'<div>'+team(t)+' ('+V.names[t]+' و '+V.names[t+2]+'): <b>'+r.p[t]+'</b> امتیاز<br><small>'+r.cards[t]+' کارت، '+r.sur[t]+' پاسور</small></div>').join('')+'</div>'+(isHost?'<div class="act"><button onclick="startGame()">دست جدید</button></div>':'');
+    const mem=t=>V.act.filter(x=>V.tm[x]==t).map(x=>V.names[x]).join(' و '),nm=t=>V.act.length==2?mem(t):team(t)+' ('+mem(t)+')';
+    const r=V.res,w=r.p[0]==r.p[1]?'مساوی':nm(r.p[0]>r.p[1]?0:1)+' برنده شد 🏆';
+    b.innerHTML='<div class="box res"><b style="font-size:24px">'+w+'</b>'+[0,1].map(t=>'<div>'+nm(t)+': <b>'+r.p[t]+'</b> امتیاز<br><small>'+r.cards[t]+' کارت، '+r.sur[t]+' پاسور</small></div>').join('')+'</div>'+(isHost?'<div class="act"><button onclick="startGame(G.mode)">دست جدید</button></div>':'');
     return;
   }
   b.innerHTML='<div class="bar box" style="padding:8px 14px"><span>ما: '+V.cc[tm]+' کارت، '+V.sur[tm]+' پاسور</span><span>حریف: '+V.cc[1-tm]+' کارت، '+V.sur[1-tm]+' پاسور</span></div>'
-   +'<div class="top">'+pl(2)+'</div><div class="mid">'+pl(3)+'<div class="tb" id="tb"></div>'+pl(1)+'</div>'
+   +'<div class="top">'+ps(two?op:n(2))+'</div><div class="mid">'+(two?'':ps(n(3)))+'<div class="tb" id="tb"></div>'+(two?'':ps(n(1)))+'</div>'
    +'<div class="msg">'+V.msg+'</div><div class="hand" id="hd"></div><div class="act"><button id="go"></button></div>';
   V.table.forEach((c,i)=>$('tb').append(cardEl(c,sel.includes(i)?'sel':'',()=>{if(pc<0)return;sel=sel.includes(i)?sel.filter(x=>x!=i):[...sel,i];render()})));
   V.hand.forEach((c,i)=>$('hd').append(cardEl(c,pc==i?'sel':'',()=>{pc=pc==i?-1:i;sel=[];render()})));
