@@ -229,7 +229,7 @@ function board(b){
   }
   b.innerHTML='<div class="bar box" style="padding:8px 14px"><span>ما: '+V.cc[tm]+' کارت، '+V.sur[tm]+' پاسور</span><span>حریف: '+V.cc[1-tm]+' کارت، '+V.sur[1-tm]+' پاسور</span></div>'
    +'<div class="top">'+ps(two?op:n(2))+'</div><div class="mid">'+(two?'':ps(n(3)))+'<div class="tb" id="tb"></div>'+(two?'':ps(n(1)))+'</div>'
-   +'<div class="msg">'+V.msg+'</div>'+lm(ev)+'<div class="hand" id="hd"></div><div class="act"><button id="go"></button></div>';
+   +'<div class="msg">'+V.msg+'</div><div class="hand" id="hd"></div><div class="act"><button id="go"></button></div>';
   V.table.forEach((c,i)=>$('tb').append(cardEl(c,(sel.includes(i)?'sel':'')+(fresh&&!ev.cap&&i==V.table.length-1?' new':''),()=>{if(pc<0)return;sel=sel.includes(i)?sel.filter(x=>x!=i):[...sel,i];render()})));
   if(fresh&&ev.cap){const g=document.createElement('div'),d=dir(ev.seat);g.className='gh';g.style.setProperty('--dx',d[0]+'px');g.style.setProperty('--dy',d[1]+'px');[ev.card,...ev.cap].forEach(c=>g.append(cardEl(c)));$('tb').append(g)}
   if(ev)lastEv=ev.id;
