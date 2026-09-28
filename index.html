@@ -44,7 +44,7 @@ h1{font-size:34px;font-weight:900;margin:24px 0 4px;color:#e8c26a}
   </div>
   <div class="box">
    <input id="code" placeholder="کد اتاق" maxlength="4" style="text-transform:uppercase;direction:ltr;text-align:center">
-   <button class="g" onclick="joinRoom()">ورود با کد</button>
+   <button class="g" onclick="joinRoom()">ورود با کد</button><div id="js" style="color:#e8c26a;min-height:20px;font-size:14px"></div>
   </div>
  </div>
  <div id="app" hidden>
@@ -61,10 +61,12 @@ let peer,room,host,isHost=false,G=null,V=null,pc=-1,sel=[],myName='',allConns=[]
 $('code').value=(new URLSearchParams(location.search).get('room')||'').toUpperCase();
 
 /* ---------- اتصال ---------- */
+const PC={config:{iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'},{urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},{urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},{urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}]}};
+function stat(t){$('js').textContent=t}
 function createRoom(){
   myName=$('name').value.trim()||'میزبان';
   const c=Math.random().toString(36).slice(2,6).toUpperCase();
-  peer=new Peer('pasur-'+c);
+  peer=new Peer('pasur-'+c,PC);
   peer.on('open',()=>{isHost=true;room=c;G={phase:'lobby',names:[myName,null,null,null],conns:[null,null,null,null],bots:[0,0,0,0]};sendAll()});
   peer.on('connection',cn=>{allConns.push(cn);cn.on('data',d=>hostMsg(cn,d));cn.on('close',()=>{allConns=allConns.filter(x=>x!=cn);const i=G.conns.indexOf(cn);if(i>=0){if(G.phase=='lobby'){G.names[i]=null;G.conns[i]=null}else{G.bots[i]=1;G.msg='⚠️ '+G.names[i]+' قطع شد؛ ربات جایش بازی می‌کند';G.names[i]+=' 🤖'}sendAll()}})});
   peer.on('error',e=>{if(e.type=='unavailable-id')createRoom();else alert('خطا در اتصال: '+e.type)});
@@ -72,12 +74,12 @@ function createRoom(){
 function joinRoom(){
   myName=$('name').value.trim()||'بازیکن';
   const c=$('code').value.trim().toUpperCase();if(!c)return alert('کد اتاق را بنویس');
-  room=c;peer=new Peer();
-  peer.on('open',()=>{host=peer.connect('pasur-'+c,{reliable:true});
+  room=c;stat('در حال اتصال به سرور…');const t1=setTimeout(()=>stat('❌ به سرور اتصال (PeerJS) وصل نشد. اینترنت یا فیلترشکن را عوض کن و دوباره امتحان کن.'),12000);peer=new Peer(undefined,PC);
+  peer.on('open',()=>{clearTimeout(t1);stat('در حال اتصال به میزبان…');host=peer.connect('pasur-'+c,{reliable:true});const t2=setTimeout(()=>stat('❌ به میزبان وصل نشد. مطمئن شو میزبان صفحه را باز نگه داشته. اگر باز هم نشد، مشکل از شبکه است؛ با وای‌فای یا فیلترشکن دیگر امتحان کنید.'),15000);host.on('open',()=>clearTimeout(t2));
     host.on('open',()=>host.send({t:'hello'}));
     host.on('data',d=>{if(d.t=='view'){V=d.v;pc=-1;sel=[];render()}else if(d.t=='err')alert(d.m)});
     host.on('close',()=>alert('اتصال با میزبان قطع شد'))});
-  peer.on('error',()=>alert('اتاقی با این کد پیدا نشد'));
+  peer.on('error',e=>stat(e.type=='peer-unavailable'?'❌ اتاقی با این کد پیدا نشد':'❌ خطا: '+e.type));
 }
 function copyLink(){const u=location.origin+location.pathname+'?room='+room;navigator.clipboard.writeText(u).then(()=>alert('لینک کپی شد'),()=>prompt('لینک:',u))}
 
