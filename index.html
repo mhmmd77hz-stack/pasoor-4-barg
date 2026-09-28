@@ -35,11 +35,13 @@ h1{font-size:34px;font-weight:900;margin:24px 0 4px;color:#e8c26a}
 .mc{display:inline-block;background:#fbf6e6;color:#1c1c1c;border-radius:5px;padding:1px 6px;font-weight:700;direction:ltr}
 .mc.red{color:#c1272d}
 .tb{position:relative}
-.c.new{animation:drop .5s ease-out}
-@keyframes drop{from{transform:translateY(-70px) scale(1.25);opacity:0}to{transform:none;opacity:1}}
-.gh{position:absolute;inset:0;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-content:center;pointer-events:none;background:#0b3d2be6;border-radius:16px;animation:go 1.8s ease-in forwards}
-.gh .c{outline:3px solid #e8c26a}
-@keyframes go{0%{opacity:1;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.4)}}
+.c.new{animation:drop .3s ease-out}
+@keyframes drop{from{transform:translateY(-36px) scale(1.1);opacity:0}to{transform:none;opacity:1}}
+.gh{position:absolute;inset:0;display:flex;flex-wrap:wrap;gap:4px;justify-content:center;align-content:center;pointer-events:none;animation:go 1.2s ease-in forwards}
+.gh .c{width:36px;height:52px;font-size:15px;border-radius:6px;outline:2px solid #e8c26a}
+.gh .c i{font-size:16px}
+#chat.off{padding:4px 0;background:none;border:0;margin-top:8px}
+@keyframes go{0%{opacity:0;transform:scale(1.15)}12%{opacity:1;transform:scale(1)}45%{opacity:1;transform:scale(1)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.25)}}
 #chat{margin-top:14px;background:#00000030;border:1px solid #e8c26a44;border-radius:14px;padding:10px;display:grid;gap:8px}
 #clog{max-height:90px;overflow:auto;font-size:14px;line-height:1.7}
 #stk{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
@@ -84,7 +86,7 @@ const esc=t=>String(t).replace(/[&<>"']/g,'');
 const STK=['👏','😂','😡','🔥','🤝','😎','🙏','😭','🤔','💪','آفرین!','بد شانسی 😅','یالا زود باش','پاسور!'];
 let tt,lastEv=0;
 STK.forEach(e=>{const b=document.createElement('button');b.className='g sb';b.textContent=e;b.onclick=()=>sendChat(e,'s');$('stk').append(b)});
-function setCO(off){$('stk').style.display=$('crow').style.display=off?'none':'';$('cn').style.display=off?'':'none';const b=$('ct');b.style.display=isHost?'':'none';b.textContent=off?'🔊 وصل کردن چت':'🔇 قطع چت'}
+function setCO(off){$('stk').style.display=$('crow').style.display=off?'none':'';$('cn').style.display=off&&!isHost?'':'none';$('clog').style.display=off?'none':'';$('chat').classList.toggle('off',off);const b=$('ct');b.style.display=isHost?'':'none';b.textContent=off?'🔊 وصل کردن چت':'🔇 قطع چت'}
 function toggleChat(){G.chatOff=!G.chatOff;V.chatOff=G.chatOff;allConns.forEach(cn=>{try{cn.send({t:'co',v:G.chatOff})}catch(e){}});setCO(G.chatOff)}
 function sendTxt(){const i=$('cin');sendChat(i.value,'t');i.value=''}
 function sendChat(m,k){m=String(m).trim();if(!m||!V||V.me<0||V.chatOff)return;if(isHost)bc(0,m,k);else host.send({t:'chat',m,k})}
@@ -217,7 +219,7 @@ function board(b){
   const two=V.act.length==2,op=V.act.find(x=>x!=my),ev=V.ev,fresh=!!ev&&ev.id!=lastEv;
   const mini=c=>'<span class="mc'+(c.s=='H'||c.s=='D'?' red':'')+'">'+RL(c.r)+SU[c.s]+'</span>';
   const lm=e=>e?'<div class="lm">'+V.names[e.seat]+': '+mini(e.card)+(e.cap?' ⟵ '+e.cap.map(mini).join(' ')+(e.sur?' ✨ پاسور':''):' ⬇ روی زمین')+'</div>':'';
-  const dir=x=>x==my?[0,150]:two?[0,-150]:[[0,150],[-150,0],[0,-150],[150,0]][(x-my+4)%4];
+  const dir=x=>x==my?[0,70]:two?[0,-70]:[[0,70],[-120,0],[0,-70],[120,0]][(x-my+4)%4];
   const ps=x=>V.act.includes(x)?'<div class="p '+(V.turn==x?'on':'')+'">'+V.names[x]+(V.tm[x]==tm&&x!=my?' (هم‌تیمی)':'')+'<br>🂠 '+V.cnt[x]+'</div>':'';
   if(V.phase=='end'){
     const mem=t=>V.act.filter(x=>V.tm[x]==t).map(x=>V.names[x]).join(' و '),nm=t=>V.act.length==2?mem(t):team(t)+' ('+mem(t)+')';
